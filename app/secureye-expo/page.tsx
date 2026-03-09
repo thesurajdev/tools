@@ -22,6 +22,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\d{10}$/;
 const PIN_REGEX = /^\d{6}$/;
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const FORM_STORAGE_KEY = 'secureye_form_data';
 
 const fieldCookieMap: Record<keyof FormState, string> = {
   name: 'secureye_name',
@@ -69,6 +70,33 @@ const setCookie = (cookieName: string, value: string) => {
   )}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
 };
 
+const getStoredValue = (field: keyof FormState): string => {
+  const cookieValue = getCookieFromAnyKey(fieldCookieMap[field], fallbackCookieKeys[field]);
+  if (cookieValue) return cookieValue;
+
+  try {
+    const raw = localStorage.getItem(FORM_STORAGE_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw) as Partial<FormState>;
+    return typeof parsed[field] === 'string' ? parsed[field] : '';
+  } catch {
+    return '';
+  }
+};
+
+const setStoredValue = (field: keyof FormState, value: string) => {
+  setCookie(fieldCookieMap[field], value);
+
+  try {
+    const raw = localStorage.getItem(FORM_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Partial<FormState>) : {};
+    parsed[field] = value;
+    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    // Ignore storage failures (private mode/quota limits)
+  }
+};
+
 export default function SecureyeExpoPage() {
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -77,24 +105,12 @@ export default function SecureyeExpoPage() {
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
 
   useEffect(() => {
-    const savedName = getCookieFromAnyKey(
-      fieldCookieMap.name,
-      fallbackCookieKeys.name,
-    ).trim();
-    const savedPhoneNo = getCookieFromAnyKey(
-      fieldCookieMap.phoneNo,
-      fallbackCookieKeys.phoneNo,
-    )
+    const savedName = getStoredValue('name').trim();
+    const savedPhoneNo = getStoredValue('phoneNo')
       .replace(/\D/g, '')
       .slice(0, 10);
-    const savedEmailId = getCookieFromAnyKey(
-      fieldCookieMap.emailId,
-      fallbackCookieKeys.emailId,
-    ).trim();
-    const savedPinCode = getCookieFromAnyKey(
-      fieldCookieMap.pinCode,
-      fallbackCookieKeys.pinCode,
-    )
+    const savedEmailId = getStoredValue('emailId').trim();
+    const savedPinCode = getStoredValue('pinCode')
       .replace(/\D/g, '')
       .slice(0, 6);
 
@@ -144,7 +160,7 @@ export default function SecureyeExpoPage() {
   const handleInputChange = (field: keyof FormState, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
-    setCookie(fieldCookieMap[field], value);
+    setStoredValue(field, value);
   };
 
   const handleBlur = (field: keyof FormState) => {
@@ -244,6 +260,7 @@ export default function SecureyeExpoPage() {
               </label>
               <input
                 id="name"
+                name="name"
                 type="text"
                 value={formData.name}
                 onChange={(event) => handleInputChange('name', event.target.value)}
@@ -274,6 +291,7 @@ export default function SecureyeExpoPage() {
               </label>
               <input
                 id="pinCode"
+                name="postal-code"
                 type="text"
                 value={formData.pinCode}
                 onChange={(event) => handleInputChange('pinCode', event.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -307,6 +325,7 @@ export default function SecureyeExpoPage() {
             </label>
             <input
               id="phoneNo"
+              name="phone"
               type="tel"
               value={formData.phoneNo}
               onChange={(event) => handleInputChange('phoneNo', event.target.value.replace(/\D/g, '').slice(0, 10))}
@@ -338,6 +357,7 @@ export default function SecureyeExpoPage() {
             </label>
             <input
               id="emailId"
+              name="email"
               type="email"
               value={formData.emailId}
               onChange={(event) => handleInputChange('emailId', event.target.value)}
