@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 type FormState = {
   name: string;
@@ -21,6 +21,35 @@ type FormErrors = Partial<Record<keyof FormState, string>>;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\d{10}$/;
 const PIN_REGEX = /^\d{6}$/;
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
+const fieldCookieMap: Record<keyof FormState, string> = {
+  name: 'secureye_name',
+  phoneNo: 'secureye_phone',
+  emailId: 'secureye_email',
+  pinCode: 'secureye_pin',
+};
+
+const getCookie = (cookieName: string): string => {
+  const cookie = document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${cookieName}=`));
+
+  if (!cookie) return '';
+
+  return decodeURIComponent(cookie.split('=').slice(1).join('='));
+};
+
+const setCookie = (cookieName: string, value: string) => {
+  if (!value) {
+    document.cookie = `${cookieName}=; path=/; max-age=0; SameSite=Lax`;
+    return;
+  }
+
+  document.cookie = `${cookieName}=${encodeURIComponent(
+    value,
+  )}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
+};
 
 export default function SecureyeExpoPage() {
   const [formData, setFormData] = useState<FormState>(initialFormState);
@@ -28,6 +57,20 @@ export default function SecureyeExpoPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
+
+  useEffect(() => {
+    const savedName = getCookie(fieldCookieMap.name).trim();
+    const savedPhoneNo = getCookie(fieldCookieMap.phoneNo).replace(/\D/g, '').slice(0, 10);
+    const savedEmailId = getCookie(fieldCookieMap.emailId).trim();
+    const savedPinCode = getCookie(fieldCookieMap.pinCode).replace(/\D/g, '').slice(0, 6);
+
+    setFormData({
+      name: savedName,
+      phoneNo: savedPhoneNo,
+      emailId: savedEmailId,
+      pinCode: savedPinCode,
+    });
+  }, []);
 
   const validateField = (field: keyof FormState, value: string): string => {
     const trimmedValue = value.trim();
@@ -67,6 +110,7 @@ export default function SecureyeExpoPage() {
   const handleInputChange = (field: keyof FormState, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
+    setCookie(fieldCookieMap[field], value);
   };
 
   const handleBlur = (field: keyof FormState) => {
