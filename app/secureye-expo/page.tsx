@@ -30,6 +30,13 @@ const fieldCookieMap: Record<keyof FormState, string> = {
   pinCode: 'secureye_pin',
 };
 
+const fallbackCookieKeys: Record<keyof FormState, string[]> = {
+  name: ['name', 'fullName'],
+  phoneNo: ['phoneNo', 'phone', 'mobile', 'mobileNo'],
+  emailId: ['emailId', 'email'],
+  pinCode: ['pinCode', 'pincode', 'postalCode'],
+};
+
 const getCookie = (cookieName: string): string => {
   const cookie = document.cookie
     .split('; ')
@@ -38,6 +45,17 @@ const getCookie = (cookieName: string): string => {
   if (!cookie) return '';
 
   return decodeURIComponent(cookie.split('=').slice(1).join('='));
+};
+
+const getCookieFromAnyKey = (primaryKey: string, fallbackKeys: string[]): string => {
+  const keys = [primaryKey, ...fallbackKeys];
+
+  for (const key of keys) {
+    const value = getCookie(key);
+    if (value) return value;
+  }
+
+  return '';
 };
 
 const setCookie = (cookieName: string, value: string) => {
@@ -59,10 +77,26 @@ export default function SecureyeExpoPage() {
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
 
   useEffect(() => {
-    const savedName = getCookie(fieldCookieMap.name).trim();
-    const savedPhoneNo = getCookie(fieldCookieMap.phoneNo).replace(/\D/g, '').slice(0, 10);
-    const savedEmailId = getCookie(fieldCookieMap.emailId).trim();
-    const savedPinCode = getCookie(fieldCookieMap.pinCode).replace(/\D/g, '').slice(0, 6);
+    const savedName = getCookieFromAnyKey(
+      fieldCookieMap.name,
+      fallbackCookieKeys.name,
+    ).trim();
+    const savedPhoneNo = getCookieFromAnyKey(
+      fieldCookieMap.phoneNo,
+      fallbackCookieKeys.phoneNo,
+    )
+      .replace(/\D/g, '')
+      .slice(0, 10);
+    const savedEmailId = getCookieFromAnyKey(
+      fieldCookieMap.emailId,
+      fallbackCookieKeys.emailId,
+    ).trim();
+    const savedPinCode = getCookieFromAnyKey(
+      fieldCookieMap.pinCode,
+      fallbackCookieKeys.pinCode,
+    )
+      .replace(/\D/g, '')
+      .slice(0, 6);
 
     setFormData({
       name: savedName,
@@ -168,14 +202,29 @@ export default function SecureyeExpoPage() {
   const hasAnyError = Object.values(errors).some(Boolean);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_15%,#cffafe_0%,transparent_35%),radial-gradient(circle_at_80%_10%,#dbeafe_0%,transparent_40%),linear-gradient(180deg,#f0f9ff_0%,#f8fafc_60%,#ffffff_100%)] px-3 py-6 sm:px-4 sm:py-12">
-      <div className="pointer-events-none absolute -left-16 top-24 h-44 w-44 rounded-full bg-cyan-200/35 blur-2xl" />
-      <div className="pointer-events-none absolute -right-12 top-8 h-40 w-40 rounded-full bg-blue-200/35 blur-2xl" />
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_15%,#fed7aa_0%,transparent_35%),radial-gradient(circle_at_80%_10%,#fdba74_0%,transparent_40%),linear-gradient(180deg,#fff7ed_0%,#fffbeb_60%,#ffffff_100%)] px-3 py-6 sm:px-4 sm:py-12">
+      <div className="pointer-events-none absolute -left-16 top-24 h-44 w-44 rounded-full bg-orange-300/35 blur-2xl" />
+      <div className="pointer-events-none absolute -right-12 top-8 h-40 w-40 rounded-full bg-amber-300/35 blur-2xl" />
 
       <div className="mx-auto w-full max-w-3xl animate-[fade-in_0.45s_ease-out] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-[0_20px_70px_-30px_rgba(8,47,73,0.45)] backdrop-blur sm:p-8">
         <div className="mb-6 flex items-start justify-between gap-3 sm:mb-8">
           <div>
-            <p className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold tracking-wide text-cyan-800">
+            <div className="mb-4 flex justify-center sm:justify-start">
+              <a
+                href="https://secureye.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Visit Secureye website"
+              >
+                <img
+                  src="https://www.secureye.com//uploads/images/1723622048_22ea1bb1f4fb807bb415.png"
+                  alt="Secureye"
+                  className="h-10 w-auto object-contain brightness-0 sm:h-12"
+                  loading="eager"
+                />
+              </a>
+            </div>
+            <p className="inline-flex rounded-full border border-[#F16B1C]/30 bg-[#F16B1C]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[#C45012]">
               SECUREYE EXPO
             </p>
             <h1 className="mt-3 text-2xl font-bold leading-tight text-slate-900 sm:text-4xl">Visitor Registration</h1>
@@ -188,64 +237,33 @@ export default function SecureyeExpoPage() {
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-          <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '50ms' }}>
-            <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
-              Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={formData.name}
-              onChange={(event) => handleInputChange('name', event.target.value)}
-              onBlur={() => handleBlur('name')}
-              autoComplete="name"
-              className={`${inputBaseClassName} ${
-                errors.name
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                  : 'border-slate-200 focus:border-cyan-500 focus:ring-cyan-200'
-              }`}
-              placeholder="Full name"
-              aria-invalid={Boolean(errors.name)}
-              aria-describedby={errors.name ? 'name-error' : 'name-help'}
-            />
-            <p id="name-help" className="mt-1 text-xs text-slate-500">
-              Enter your first and last name.
-            </p>
-            {errors.name && (
-              <p id="name-error" className="mt-1 text-sm text-red-600">
-                {errors.name}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '100ms' }}>
-              <label htmlFor="phoneNo" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Phone No
+          <div className="grid grid-cols-2 gap-3 sm:gap-5">
+            <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '50ms' }}>
+              <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Name
               </label>
               <input
-                id="phoneNo"
-                type="tel"
-                value={formData.phoneNo}
-                onChange={(event) => handleInputChange('phoneNo', event.target.value.replace(/\D/g, '').slice(0, 10))}
-                onBlur={() => handleBlur('phoneNo')}
-                inputMode="numeric"
-                autoComplete="tel-national"
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(event) => handleInputChange('name', event.target.value)}
+                onBlur={() => handleBlur('name')}
+                autoComplete="name"
                 className={`${inputBaseClassName} ${
-                  errors.phoneNo
+                  errors.name
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                    : 'border-slate-200 focus:border-cyan-500 focus:ring-cyan-200'
+                    : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
                 }`}
-                placeholder="10 digit mobile"
-                aria-invalid={Boolean(errors.phoneNo)}
-                aria-describedby={errors.phoneNo ? 'phoneNo-error' : 'phoneNo-help'}
+                placeholder="Full name"
+                aria-invalid={Boolean(errors.name)}
+                aria-describedby={errors.name ? 'name-error' : 'name-help'}
               />
-              <p id="phoneNo-help" className="mt-1 text-xs text-slate-500">
-                Numbers only, no country code.
+              <p id="name-help" className="mt-1 text-xs text-slate-500">
+                Enter your first and last name.
               </p>
-              {errors.phoneNo && (
-                <p id="phoneNo-error" className="mt-1 text-sm text-red-600">
-                  {errors.phoneNo}
+              {errors.name && (
+                <p id="name-error" className="mt-1 text-sm text-red-600">
+                  {errors.name}
                 </p>
               )}
             </div>
@@ -265,7 +283,7 @@ export default function SecureyeExpoPage() {
                 className={`${inputBaseClassName} ${
                   errors.pinCode
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                    : 'border-slate-200 focus:border-cyan-500 focus:ring-cyan-200'
+                    : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
                 }`}
                 placeholder="6 digit PIN"
                 aria-invalid={Boolean(errors.pinCode)}
@@ -280,6 +298,38 @@ export default function SecureyeExpoPage() {
                 </p>
               )}
             </div>
+
+          </div>
+
+          <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '100ms' }}>
+            <label htmlFor="phoneNo" className="mb-1.5 block text-sm font-medium text-slate-700">
+              Phone No
+            </label>
+            <input
+              id="phoneNo"
+              type="tel"
+              value={formData.phoneNo}
+              onChange={(event) => handleInputChange('phoneNo', event.target.value.replace(/\D/g, '').slice(0, 10))}
+              onBlur={() => handleBlur('phoneNo')}
+              inputMode="numeric"
+              autoComplete="tel-national"
+              className={`${inputBaseClassName} ${
+                errors.phoneNo
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                  : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
+              }`}
+              placeholder="10 digit mobile"
+              aria-invalid={Boolean(errors.phoneNo)}
+              aria-describedby={errors.phoneNo ? 'phoneNo-error' : 'phoneNo-help'}
+            />
+            <p id="phoneNo-help" className="mt-1 text-xs text-slate-500">
+              Numbers only, no country code.
+            </p>
+            {errors.phoneNo && (
+              <p id="phoneNo-error" className="mt-1 text-sm text-red-600">
+                {errors.phoneNo}
+              </p>
+            )}
           </div>
 
           <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '200ms' }}>
@@ -296,7 +346,7 @@ export default function SecureyeExpoPage() {
               className={`${inputBaseClassName} ${
                 errors.emailId
                   ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                  : 'border-slate-200 focus:border-cyan-500 focus:ring-cyan-200'
+                  : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
               }`}
               placeholder="name@company.com"
               aria-invalid={Boolean(errors.emailId)}
@@ -316,7 +366,7 @@ export default function SecureyeExpoPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3.5 text-base font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#F16B1C] px-4 py-3.5 text-base font-semibold text-white transition hover:bg-[#D95E19] disabled:cursor-not-allowed disabled:bg-[#F6B48A]"
             >
               {isSubmitting && (
                 <span
@@ -347,6 +397,18 @@ export default function SecureyeExpoPage() {
           )}
         </form>
       </div>
+
+      <p className="fixed inset-x-0 bottom-3 z-10 text-center text-xs text-slate-500 sm:bottom-4">
+        Crafted by{' '}
+        <a
+          href="https://surajdev.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-[#C45012] underline decoration-[#F16B1C]/40 underline-offset-2 hover:text-[#A7410F]"
+        >
+          Suraj Dev
+        </a>
+      </p>
 
       <style jsx>{`
         @keyframes fade-in {
