@@ -11,7 +11,7 @@ type SecureyePayload = {
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\d{10}$/;
+const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
 const PIN_REGEX = /^\d{6}$/;
 
 export async function POST(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     if (!PHONE_REGEX.test(phoneNo)) {
       return NextResponse.json(
-        { message: 'Phone number must be exactly 10 digits.' },
+        { message: 'Use format like +919876543210 (country code required).' },
         { status: 400 },
       );
     }

@@ -19,7 +19,7 @@ const initialFormState: FormState = {
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\d{10}$/;
+const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
 const PIN_REGEX = /^\d{6}$/;
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const FORM_STORAGE_KEY = 'secureye_form_data';
@@ -97,6 +97,20 @@ const setStoredValue = (field: keyof FormState, value: string) => {
   }
 };
 
+const normalizePhoneInput = (value: string): string => {
+  const compact = value.replace(/\s+/g, '');
+  let cleaned = compact.replace(/[^\d+]/g, '');
+
+  if (cleaned.startsWith('+')) {
+    cleaned = `+${cleaned.slice(1).replace(/\+/g, '')}`;
+  } else {
+    cleaned = cleaned.replace(/\+/g, '');
+  }
+
+  const digits = cleaned.replace(/\D/g, '').slice(0, 15);
+  return cleaned.startsWith('+') ? `+${digits}` : digits;
+};
+
 export default function SecureyeExpoPage() {
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -106,9 +120,7 @@ export default function SecureyeExpoPage() {
 
   useEffect(() => {
     const savedName = getStoredValue('name').trim();
-    const savedPhoneNo = getStoredValue('phoneNo')
-      .replace(/\D/g, '')
-      .slice(0, 10);
+    const savedPhoneNo = normalizePhoneInput(getStoredValue('phoneNo').trim());
     const savedEmailId = getStoredValue('emailId').trim();
     const savedPinCode = getStoredValue('pinCode')
       .replace(/\D/g, '')
@@ -134,7 +146,7 @@ export default function SecureyeExpoPage() {
     }
 
     if (field === 'phoneNo' && !PHONE_REGEX.test(trimmedValue)) {
-      return 'Phone number must be exactly 10 digits.';
+      return 'Use format like +919876543210 (country code required).';
     }
 
     if (field === 'emailId' && !EMAIL_REGEX.test(trimmedValue)) {
@@ -328,21 +340,21 @@ export default function SecureyeExpoPage() {
               name="phone"
               type="tel"
               value={formData.phoneNo}
-              onChange={(event) => handleInputChange('phoneNo', event.target.value.replace(/\D/g, '').slice(0, 10))}
+              onChange={(event) => handleInputChange('phoneNo', normalizePhoneInput(event.target.value))}
               onBlur={() => handleBlur('phoneNo')}
-              inputMode="numeric"
-              autoComplete="tel-national"
+              inputMode="tel"
+              autoComplete="tel"
               className={`${inputBaseClassName} ${
                 errors.phoneNo
                   ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                   : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
               }`}
-              placeholder="10 digit mobile"
+              placeholder="+919876543210"
               aria-invalid={Boolean(errors.phoneNo)}
               aria-describedby={errors.phoneNo ? 'phoneNo-error' : 'phoneNo-help'}
             />
             <p id="phoneNo-help" className="mt-1 text-xs text-slate-500">
-              Numbers only, no country code.
+              Include country code and use a WhatsApp-enabled number.
             </p>
             {errors.phoneNo && (
               <p id="phoneNo-error" className="mt-1 text-sm text-red-600">
