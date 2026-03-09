@@ -9,9 +9,11 @@ type FormState = {
   pinCode: string;
 };
 
+const DEFAULT_COUNTRY_CODE = '+91';
+
 const initialFormState: FormState = {
   name: '',
-  phoneNo: '',
+  phoneNo: DEFAULT_COUNTRY_CODE,
   emailId: '',
   pinCode: '',
 };
@@ -128,7 +130,7 @@ export default function SecureyeExpoPage() {
 
     setFormData({
       name: savedName,
-      phoneNo: savedPhoneNo,
+      phoneNo: savedPhoneNo || DEFAULT_COUNTRY_CODE,
       emailId: savedEmailId,
       pinCode: savedPinCode,
     });
