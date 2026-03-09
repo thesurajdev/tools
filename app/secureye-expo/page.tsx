@@ -339,13 +339,21 @@ export default function SecureyeExpoPage() {
             </label>
             <input
               id="phoneNo"
-              name="phone"
+              name="tel"
               type="tel"
               value={formData.phoneNo}
               onChange={(event) => handleInputChange('phoneNo', normalizePhoneInput(event.target.value))}
+              onFocus={(event) => {
+                if (event.currentTarget.value === DEFAULT_COUNTRY_CODE) {
+                  event.currentTarget.select();
+                }
+              }}
               onBlur={() => handleBlur('phoneNo')}
               inputMode="tel"
               autoComplete="tel"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
               className={`${inputBaseClassName} ${
                 errors.phoneNo
                   ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
