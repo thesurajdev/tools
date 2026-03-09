@@ -3,6 +3,11 @@ import Link from 'next/link';
 export default function Home() {
   const tools = [
     {
+      name: 'Secureye Expo Form',
+      description: 'Collect attendee details and trigger the Secureye Expo webhook',
+      href: '/tools/secureye-expo',
+    },
+    {
       name: 'Hyperlink Generator',
       description: 'Generate HTML hyperlinks with custom text and URLs',
       href: '/tools/hyperlink-generator',

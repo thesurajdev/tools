@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: '/tools/secureye-expo',
+        destination: '/secureye-expo',
+        permanent: true,
+      },
+      {
         source: '/tools/hyperlink-generator',
         destination: '/hyperlink-generator',
         permanent: true,
