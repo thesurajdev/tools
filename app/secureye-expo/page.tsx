@@ -106,9 +106,10 @@ export default function SecureyeExpoPage() {
         throw new Error(data.message || 'Failed to submit form.');
       }
 
-      setMessage('Form submitted successfully.');
+      setMessage('Form submitted successfully. Redirecting...');
       setMessageType('success');
       setFormData(initialFormState);
+      window.location.assign('https://secureye.com');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Something went wrong.');
       setMessageType('error');
