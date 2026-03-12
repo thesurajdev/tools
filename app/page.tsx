@@ -5,12 +5,12 @@ export default function Home() {
     {
       name: 'Secureye Expo Form',
       description: 'Collect attendee details and trigger the Secureye Expo webhook',
-      href: '/tools/secureye-expo',
+      href: '/secureye-expo',
     },
     {
       name: 'Hyperlink Generator',
       description: 'Generate HTML hyperlinks with custom text and URLs',
-      href: '/tools/hyperlink-generator',
+      href: '/hyperlink-generator',
     },
   ];
 
