@@ -1,56 +1,74 @@
-'use client';
+"use client";
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from "react";
 
 type FormState = {
   name: string;
   phoneNo: string;
   emailId: string;
   pinCode: string;
+  city: string;
+  state: string;
 };
 
-const DEFAULT_COUNTRY_CODE = '+91';
+const DEFAULT_COUNTRY_CODE = "+91";
 
 const initialFormState: FormState = {
-  name: '',
+  name: "",
   phoneNo: DEFAULT_COUNTRY_CODE,
-  emailId: '',
-  pinCode: '',
+  emailId: "",
+  pinCode: "",
+  city: "",
+  state: "",
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
+
+type LocationSuggestion = {
+  pinCode: string;
+  city: string;
+  state: string;
+  label: string;
+};
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
 const PIN_REGEX = /^\d{6}$/;
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
-const FORM_STORAGE_KEY = 'secureye_form_data';
+const FORM_STORAGE_KEY = "secureye_form_data";
 
 const fieldCookieMap: Record<keyof FormState, string> = {
-  name: 'secureye_name',
-  phoneNo: 'secureye_phone',
-  emailId: 'secureye_email',
-  pinCode: 'secureye_pin',
+  name: "secureye_name",
+  phoneNo: "secureye_phone",
+  emailId: "secureye_email",
+  pinCode: "secureye_pin",
+  city: "secureye_city",
+  state: "secureye_state",
 };
 
 const fallbackCookieKeys: Record<keyof FormState, string[]> = {
-  name: ['name', 'fullName'],
-  phoneNo: ['phoneNo', 'phone', 'mobile', 'mobileNo'],
-  emailId: ['emailId', 'email'],
-  pinCode: ['pinCode', 'pincode', 'postalCode'],
+  name: ["name", "fullName"],
+  phoneNo: ["phoneNo", "phone", "mobile", "mobileNo"],
+  emailId: ["emailId", "email"],
+  pinCode: ["pinCode", "pincode", "postalCode"],
+  city: ["city"],
+  state: ["state"],
 };
 
 const getCookie = (cookieName: string): string => {
   const cookie = document.cookie
-    .split('; ')
+    .split("; ")
     .find((item) => item.startsWith(`${cookieName}=`));
 
-  if (!cookie) return '';
+  if (!cookie) return "";
 
-  return decodeURIComponent(cookie.split('=').slice(1).join('='));
+  return decodeURIComponent(cookie.split("=").slice(1).join("="));
 };
 
-const getCookieFromAnyKey = (primaryKey: string, fallbackKeys: string[]): string => {
+const getCookieFromAnyKey = (
+  primaryKey: string,
+  fallbackKeys: string[],
+): string => {
   const keys = [primaryKey, ...fallbackKeys];
 
   for (const key of keys) {
@@ -58,7 +76,7 @@ const getCookieFromAnyKey = (primaryKey: string, fallbackKeys: string[]): string
     if (value) return value;
   }
 
-  return '';
+  return "";
 };
 
 const setCookie = (cookieName: string, value: string) => {
@@ -73,16 +91,19 @@ const setCookie = (cookieName: string, value: string) => {
 };
 
 const getStoredValue = (field: keyof FormState): string => {
-  const cookieValue = getCookieFromAnyKey(fieldCookieMap[field], fallbackCookieKeys[field]);
+  const cookieValue = getCookieFromAnyKey(
+    fieldCookieMap[field],
+    fallbackCookieKeys[field],
+  );
   if (cookieValue) return cookieValue;
 
   try {
     const raw = localStorage.getItem(FORM_STORAGE_KEY);
-    if (!raw) return '';
+    if (!raw) return "";
     const parsed = JSON.parse(raw) as Partial<FormState>;
-    return typeof parsed[field] === 'string' ? parsed[field] : '';
+    return typeof parsed[field] === "string" ? parsed[field] : "";
   } catch {
-    return '';
+    return "";
   }
 };
 
@@ -100,80 +121,212 @@ const setStoredValue = (field: keyof FormState, value: string) => {
 };
 
 const normalizePhoneInput = (value: string): string => {
-  const compact = value.replace(/\s+/g, '');
-  let cleaned = compact.replace(/[^\d+]/g, '');
+  const compact = value.replace(/\s+/g, "");
+  let cleaned = compact.replace(/[^\d+]/g, "");
 
-  if (cleaned.startsWith('+')) {
-    cleaned = `+${cleaned.slice(1).replace(/\+/g, '')}`;
+  if (cleaned.startsWith("+")) {
+    cleaned = `+${cleaned.slice(1).replace(/\+/g, "")}`;
   } else {
-    cleaned = cleaned.replace(/\+/g, '');
+    cleaned = cleaned.replace(/\+/g, "");
   }
 
-  const digits = cleaned.replace(/\D/g, '').slice(0, 15);
-  return cleaned.startsWith('+') ? `+${digits}` : digits;
+  const digits = cleaned.replace(/\D/g, "").slice(0, 15);
+  return cleaned.startsWith("+") ? `+${digits}` : digits;
 };
 
 export default function SecureyeExpoPage() {
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [pinInputValue, setPinInputValue] = useState("");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error" | "">("");
 
   useEffect(() => {
-    const savedName = getStoredValue('name').trim();
-    const savedPhoneNo = normalizePhoneInput(getStoredValue('phoneNo').trim());
-    const savedEmailId = getStoredValue('emailId').trim();
-    const savedPinCode = getStoredValue('pinCode')
-      .replace(/\D/g, '')
+    const savedName = getStoredValue("name").trim();
+    const savedPhoneNo = normalizePhoneInput(getStoredValue("phoneNo").trim());
+    const savedEmailId = getStoredValue("emailId").trim();
+    const savedPinCode = getStoredValue("pinCode")
+      .replace(/\D/g, "")
       .slice(0, 6);
+    const savedCity = getStoredValue("city").trim();
+    const savedState = getStoredValue("state").trim();
 
     setFormData({
       name: savedName,
       phoneNo: savedPhoneNo || DEFAULT_COUNTRY_CODE,
       emailId: savedEmailId,
       pinCode: savedPinCode,
+      city: savedCity,
+      state: savedState,
     });
+    setPinInputValue(savedPinCode);
   }, []);
+
+  useEffect(() => {
+    const pinCode = formData.pinCode;
+
+    if (!PIN_REGEX.test(pinCode)) {
+      setFormData((prev) => {
+        if (!prev.city && !prev.state) return prev;
+        return { ...prev, city: "", state: "" };
+      });
+      setStoredValue("city", "");
+      setStoredValue("state", "");
+      setIsFetchingLocation(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchLocation = async () => {
+      setIsFetchingLocation(true);
+
+      try {
+        const response = await fetch(`/api/pincode?pinCode=${pinCode}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const data = (await response.json()) as {
+          city?: string;
+          state?: string;
+          message?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.message || "Could not fetch city and state.");
+        }
+
+        const city = data.city?.trim() || "";
+        const state = data.state?.trim() || "";
+
+        if (!isCancelled) {
+          setFormData((prev) => ({ ...prev, city, state }));
+          setStoredValue("city", city);
+          setStoredValue("state", state);
+          setErrors((prev) => ({ ...prev, pinCode: "" }));
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setFormData((prev) => ({ ...prev, city: "", state: "" }));
+          setStoredValue("city", "");
+          setStoredValue("state", "");
+          setErrors((prev) => ({
+            ...prev,
+            pinCode:
+              error instanceof Error
+                ? error.message
+                : "Could not fetch city and state.",
+          }));
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsFetchingLocation(false);
+        }
+      }
+    };
+
+    fetchLocation();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [formData.pinCode]);
+
+  useEffect(() => {
+    const trimmedQuery = locationQuery.trim();
+
+    if (trimmedQuery.length < 2) {
+      setLocationSuggestions([]);
+      setIsSearchingLocation(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const timer = window.setTimeout(async () => {
+      setIsSearchingLocation(true);
+
+      try {
+        const response = await fetch(
+          `/api/pincode/search?q=${encodeURIComponent(trimmedQuery)}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          },
+        );
+
+        const data = (await response.json()) as {
+          results?: LocationSuggestion[];
+        };
+
+        if (!isCancelled) {
+          setLocationSuggestions(
+            Array.isArray(data.results) ? data.results : [],
+          );
+        }
+      } catch {
+        if (!isCancelled) {
+          setLocationSuggestions([]);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSearchingLocation(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [locationQuery]);
 
   const validateField = (field: keyof FormState, value: string): string => {
     const trimmedValue = value.trim();
 
     if (!trimmedValue) {
-      return 'This field is required.';
+      return "This field is required.";
     }
 
-    if (field === 'name' && trimmedValue.length < 2) {
-      return 'Name must be at least 2 characters.';
+    if (field === "name" && trimmedValue.length < 2) {
+      return "Name must be at least 2 characters.";
     }
 
-    if (field === 'phoneNo' && !PHONE_REGEX.test(trimmedValue)) {
-      return 'Use format like +919876543210 (country code required).';
+    if (field === "phoneNo" && !PHONE_REGEX.test(trimmedValue)) {
+      return "Use format like +919876543210 (country code required).";
     }
 
-    if (field === 'emailId' && !EMAIL_REGEX.test(trimmedValue)) {
-      return 'Please enter a valid email address.';
+    if (field === "emailId" && !EMAIL_REGEX.test(trimmedValue)) {
+      return "Please enter a valid email address.";
     }
 
-    if (field === 'pinCode' && !PIN_REGEX.test(trimmedValue)) {
-      return 'PIN code must be exactly 6 digits.';
+    if (field === "pinCode" && !PIN_REGEX.test(trimmedValue)) {
+      return "PIN code must be exactly 6 digits.";
     }
 
-    return '';
+    return "";
   };
 
   const validateForm = (): FormErrors => {
     return {
-      name: validateField('name', formData.name),
-      phoneNo: validateField('phoneNo', formData.phoneNo),
-      emailId: validateField('emailId', formData.emailId),
-      pinCode: validateField('pinCode', formData.pinCode),
+      name: validateField("name", formData.name),
+      phoneNo: validateField("phoneNo", formData.phoneNo),
+      emailId: validateField("emailId", formData.emailId),
+      pinCode: validateField("pinCode", formData.pinCode),
     };
   };
 
   const handleInputChange = (field: keyof FormState, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: '' }));
+    setErrors((prev) => ({ ...prev, [field]: "" }));
     setStoredValue(field, value);
   };
 
@@ -190,20 +343,20 @@ export default function SecureyeExpoPage() {
     setErrors(validationErrors);
 
     if (hasErrors) {
-      setMessage('Please fix the highlighted fields and try again.');
-      setMessageType('error');
+      setMessage("Please fix the highlighted fields and try again.");
+      setMessageType("error");
       return;
     }
 
     setIsSubmitting(true);
-    setMessage('');
-    setMessageType('');
+    setMessage("");
+    setMessageType("");
 
     try {
-      const response = await fetch('/api/secureye-expo', {
-        method: 'POST',
+      const response = await fetch("/api/secureye-expo", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       });
@@ -211,23 +364,28 @@ export default function SecureyeExpoPage() {
       const data = (await response.json()) as { message?: string };
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to submit form.');
+        throw new Error(data.message || "Failed to submit form.");
       }
 
-      setMessage('Form submitted successfully. Redirecting...');
-      setMessageType('success');
+      setMessage("Form submitted successfully. Redirecting...");
+      setMessageType("success");
       setFormData(initialFormState);
-      window.location.assign('https://secureye.com');
+      setPinInputValue("");
+      setLocationQuery("");
+      setLocationSuggestions([]);
+      window.location.assign("https://secureye.com");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Something went wrong.');
-      setMessageType('error');
+      setMessage(
+        error instanceof Error ? error.message : "Something went wrong.",
+      );
+      setMessageType("error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const inputBaseClassName =
-    'w-full rounded-xl border bg-white/80 px-4 py-3 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:ring-2';
+    "w-full rounded-xl border bg-white/80 px-4 py-3 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:ring-2";
 
   const hasAnyError = Object.values(errors).some(Boolean);
 
@@ -257,8 +415,12 @@ export default function SecureyeExpoPage() {
             <p className="inline-flex rounded-full border border-[#F16B1C]/30 bg-[#F16B1C]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[#C45012]">
               SECUREYE EXPO
             </p>
-            <h1 className="mt-3 text-2xl font-bold leading-tight text-slate-900 sm:text-4xl">Visitor Registration</h1>
-            <p className="mt-2 text-sm text-slate-600 sm:text-base">Quick form. Takes less than 30 seconds to complete.</p>
+            <h1 className="mt-3 text-2xl font-bold leading-tight text-slate-900 sm:text-4xl">
+              Visitor Registration
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">
+              Quick form. Takes less than 30 seconds to complete.
+            </p>
           </div>
           <div className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-600 sm:block">
             <p className="font-semibold text-slate-700">Required</p>
@@ -268,8 +430,14 @@ export default function SecureyeExpoPage() {
 
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
           <div className="grid grid-cols-2 gap-3 sm:gap-5">
-            <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '50ms' }}>
-              <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
+            <div
+              className="animate-[slide-up_0.45s_ease-out]"
+              style={{ animationDelay: "50ms" }}
+            >
+              <label
+                htmlFor="name"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
                 Name
               </label>
               <input
@@ -277,17 +445,19 @@ export default function SecureyeExpoPage() {
                 name="name"
                 type="text"
                 value={formData.name}
-                onChange={(event) => handleInputChange('name', event.target.value)}
-                onBlur={() => handleBlur('name')}
+                onChange={(event) =>
+                  handleInputChange("name", event.target.value)
+                }
+                onBlur={() => handleBlur("name")}
                 autoComplete="name"
                 className={`${inputBaseClassName} ${
                   errors.name
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                    : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                    : "border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25"
                 }`}
                 placeholder="Full name"
                 aria-invalid={Boolean(errors.name)}
-                aria-describedby={errors.name ? 'name-error' : 'name-help'}
+                aria-describedby={errors.name ? "name-error" : "name-help"}
               />
               <p id="name-help" className="mt-1 text-xs text-slate-500">
                 Enter your first and last name.
@@ -299,42 +469,121 @@ export default function SecureyeExpoPage() {
               )}
             </div>
 
-            <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '150ms' }}>
-              <label htmlFor="pinCode" className="mb-1.5 block text-sm font-medium text-slate-700">
+            <div
+              className="animate-[slide-up_0.45s_ease-out]"
+              style={{ animationDelay: "150ms" }}
+            >
+              <label
+                htmlFor="pinCode"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
                 PIN Code
               </label>
               <input
                 id="pinCode"
                 name="postal-code"
                 type="text"
-                value={formData.pinCode}
-                onChange={(event) => handleInputChange('pinCode', event.target.value.replace(/\D/g, '').slice(0, 6))}
-                onBlur={() => handleBlur('pinCode')}
-                inputMode="numeric"
+                value={pinInputValue}
+                onChange={(event) => {
+                  const rawValue = event.target.value;
+                  const digitsOnly = rawValue.replace(/\D/g, "").slice(0, 6);
+                  const isLocationSearch = /[^\d\s]/.test(rawValue);
+
+                  setPinInputValue(rawValue);
+
+                  if (isLocationSearch) {
+                    handleInputChange("pinCode", "");
+                    setLocationQuery(rawValue);
+                  } else {
+                    handleInputChange("pinCode", digitsOnly);
+                    setLocationQuery("");
+                    setLocationSuggestions([]);
+                    if (rawValue !== digitsOnly) {
+                      setPinInputValue(digitsOnly);
+                    }
+                  }
+                }}
+                onBlur={() => handleBlur("pinCode")}
+                inputMode="text"
                 autoComplete="postal-code"
                 className={`${inputBaseClassName} ${
                   errors.pinCode
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                    : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                    : "border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25"
                 }`}
-                placeholder="6 digit PIN"
+                placeholder="6 digit PIN or search location"
                 aria-invalid={Boolean(errors.pinCode)}
-                aria-describedby={errors.pinCode ? 'pinCode-error' : 'pinCode-help'}
+                aria-describedby={
+                  errors.pinCode ? "pinCode-error" : "pinCode-help"
+                }
               />
-              <p id="pinCode-help" className="mt-1 text-xs text-slate-500">
-                Example: 110001
-              </p>
+              {(!formData.city || !formData.state) && (
+                <p id="pinCode-help" className="mt-1 text-xs text-slate-500">
+                  Example: 110001
+                </p>
+              )}
               {errors.pinCode && (
                 <p id="pinCode-error" className="mt-1 text-sm text-red-600">
                   {errors.pinCode}
                 </p>
               )}
-            </div>
+              {isFetchingLocation && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Fetching city and state for this PIN code...
+                </p>
+              )}
+              {!isFetchingLocation && formData.city && formData.state && (
+                <p className="mt-1 text-xs font-medium text-slate-700">
+                  City: {formData.city} | State: {formData.state}
+                </p>
+              )}
 
+              {isSearchingLocation && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Searching locations...
+                </p>
+              )}
+
+              {!isSearchingLocation &&
+                locationQuery.trim().length >= 2 &&
+                locationSuggestions.length === 0 && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    No matching location found.
+                  </p>
+                )}
+
+              {locationSuggestions.length > 0 && (
+                <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+                  {locationSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.pinCode}
+                      type="button"
+                      onClick={() => {
+                        handleInputChange("pinCode", suggestion.pinCode);
+                        handleInputChange("city", suggestion.city);
+                        handleInputChange("state", suggestion.state);
+                        setPinInputValue(suggestion.pinCode);
+                        setLocationQuery("");
+                        setLocationSuggestions([]);
+                      }}
+                      className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-700 transition hover:bg-amber-50 last:border-b-0"
+                    >
+                      {suggestion.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '100ms' }}>
-            <label htmlFor="phoneNo" className="mb-1.5 block text-sm font-medium text-slate-700">
+          <div
+            className="animate-[slide-up_0.45s_ease-out]"
+            style={{ animationDelay: "100ms" }}
+          >
+            <label
+              htmlFor="phoneNo"
+              className="mb-1.5 block text-sm font-medium text-slate-700"
+            >
               Phone No
             </label>
             <input
@@ -342,13 +591,18 @@ export default function SecureyeExpoPage() {
               name="tel"
               type="tel"
               value={formData.phoneNo}
-              onChange={(event) => handleInputChange('phoneNo', normalizePhoneInput(event.target.value))}
+              onChange={(event) =>
+                handleInputChange(
+                  "phoneNo",
+                  normalizePhoneInput(event.target.value),
+                )
+              }
               onFocus={(event) => {
                 if (event.currentTarget.value === DEFAULT_COUNTRY_CODE) {
                   event.currentTarget.select();
                 }
               }}
-              onBlur={() => handleBlur('phoneNo')}
+              onBlur={() => handleBlur("phoneNo")}
               inputMode="tel"
               autoComplete="tel"
               autoCapitalize="off"
@@ -356,12 +610,14 @@ export default function SecureyeExpoPage() {
               spellCheck={false}
               className={`${inputBaseClassName} ${
                 errors.phoneNo
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                  : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
+                  ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                  : "border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25"
               }`}
               placeholder="+919876543210"
               aria-invalid={Boolean(errors.phoneNo)}
-              aria-describedby={errors.phoneNo ? 'phoneNo-error' : 'phoneNo-help'}
+              aria-describedby={
+                errors.phoneNo ? "phoneNo-error" : "phoneNo-help"
+              }
             />
             <p id="phoneNo-help" className="mt-1 text-xs text-slate-500">
               Include country code and use a WhatsApp-enabled number.
@@ -373,8 +629,14 @@ export default function SecureyeExpoPage() {
             )}
           </div>
 
-          <div className="animate-[slide-up_0.45s_ease-out]" style={{ animationDelay: '200ms' }}>
-            <label htmlFor="emailId" className="mb-1.5 block text-sm font-medium text-slate-700">
+          <div
+            className="animate-[slide-up_0.45s_ease-out]"
+            style={{ animationDelay: "200ms" }}
+          >
+            <label
+              htmlFor="emailId"
+              className="mb-1.5 block text-sm font-medium text-slate-700"
+            >
               Email ID
             </label>
             <input
@@ -382,17 +644,21 @@ export default function SecureyeExpoPage() {
               name="email"
               type="email"
               value={formData.emailId}
-              onChange={(event) => handleInputChange('emailId', event.target.value)}
-              onBlur={() => handleBlur('emailId')}
+              onChange={(event) =>
+                handleInputChange("emailId", event.target.value)
+              }
+              onBlur={() => handleBlur("emailId")}
               autoComplete="email"
               className={`${inputBaseClassName} ${
                 errors.emailId
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                  : 'border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25'
+                  ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                  : "border-slate-200 focus:border-[#F16B1C] focus:ring-[#F16B1C]/25"
               }`}
               placeholder="name@company.com"
               aria-invalid={Boolean(errors.emailId)}
-              aria-describedby={errors.emailId ? 'emailId-error' : 'emailId-help'}
+              aria-describedby={
+                errors.emailId ? "emailId-error" : "emailId-help"
+              }
             />
             <p id="emailId-help" className="mt-1 text-xs text-slate-500">
               We use this for expo communication only.
@@ -404,7 +670,10 @@ export default function SecureyeExpoPage() {
             )}
           </div>
 
-          <div className="animate-[slide-up_0.45s_ease-out] space-y-3" style={{ animationDelay: '250ms' }}>
+          <div
+            className="animate-[slide-up_0.45s_ease-out] space-y-3"
+            style={{ animationDelay: "250ms" }}
+          >
             <button
               type="submit"
               disabled={isSubmitting}
@@ -416,20 +685,24 @@ export default function SecureyeExpoPage() {
                   aria-hidden="true"
                 />
               )}
-              {isSubmitting ? 'Submitting...' : 'Submit Registration'}
+              {isSubmitting ? "Submitting..." : "Submit Registration"}
             </button>
 
-            <p className={`text-center text-xs ${hasAnyError ? 'text-red-600' : 'text-slate-500'}`}>
-              {hasAnyError ? 'Please fix the highlighted fields.' : 'By submitting, you agree to be contacted regarding the expo.'}
+            <p
+              className={`text-center text-xs ${hasAnyError ? "text-red-600" : "text-slate-500"}`}
+            >
+              {hasAnyError
+                ? "Please fix the highlighted fields."
+                : "By submitting, you agree to be contacted regarding the expo."}
             </p>
           </div>
 
           {message && (
             <p
               className={`rounded-xl border px-3 py-2.5 text-sm ${
-                messageType === 'success'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-red-200 bg-red-50 text-red-700'
+                messageType === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-red-200 bg-red-50 text-red-700"
               }`}
               role="status"
               aria-live="polite"
@@ -441,7 +714,7 @@ export default function SecureyeExpoPage() {
       </div>
 
       <p className="fixed inset-x-0 bottom-3 z-10 text-center text-xs text-slate-500 sm:bottom-4">
-        Crafted by{' '}
+        Crafted by{" "}
         <a
           href="https://surajdev.com"
           target="_blank"
